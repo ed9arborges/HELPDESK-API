@@ -30,7 +30,7 @@ model User {
   email String @unique
   name String
   password String
-  filename String
+  avatar String
   role UserRole @default(customer)
 
   requests Requests[] @relation("CustomerRequests")
@@ -44,16 +44,17 @@ model User {
 model Requests {
   id String @id @default(uuid())
   name String
+  description String
   estimate Float
   category Category
   filename String
 
   userId String @map("user_id")
   user User @relation("CustomerRequests", fields: [userId], references: [id])
-  techId String @map("tech_id")
-  tech User @relation("TechRequests", fields: [techId], references: [id])
+  techId String? @map("tech_id")
+  tech User? @relation("TechRequests", fields: [techId], references: [id])
 
-  parts Parts[]
+  parts Parts[] @relation("RequestParts")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime? @updatedAt @map("updated_at")
@@ -66,8 +67,8 @@ model Parts {
   name String
   amount Float
 
-  requestId String @map("request_id")
-  request Requests @relation(fields: [requestId], references: [id])
+  requestId String? @map("request_id")
+  request Requests? @relation("RequestParts", fields: [requestId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime? @updatedAt @map("updated_at")

@@ -37,7 +37,7 @@ class UsersController {
         name,
         email,
         password: hashedPassword,
-        filename: "",
+        avatarImg: "",
         role
       }
     })
