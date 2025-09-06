@@ -30,7 +30,7 @@ model User {
   email String @unique
   name String
   password String
-  avatar String
+  avatarImg String
   role UserRole @default(customer)
 
   requests Requests[] @relation("CustomerRequests")
