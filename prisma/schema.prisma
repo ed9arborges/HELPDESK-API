@@ -25,6 +25,12 @@ enum Category {
   systems
 }
 
+enum RequestStatus {
+  open
+  in_progress
+  closed
+}
+
 model User { 
   id String @id @default(uuid())
   email String @unique
@@ -43,12 +49,12 @@ model User {
 }
 model Requests {
   id String @id @default(uuid())
-  name String
+  title String @map("title")
   description String
   estimate Float
   category Category
   filename String
-
+  status RequestStatus @default(open)
   userId String @map("user_id")
   user User @relation("CustomerRequests", fields: [userId], references: [id])
   techId String? @map("tech_id")
