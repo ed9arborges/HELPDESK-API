@@ -24,4 +24,23 @@ ticketsRoutes.get(
   ticketsController.show
 )
 
+ticketsRoutes.patch(
+  "/:id",
+  verifyUserAuthorization(["admin"]),
+  ticketsController.update
+)
+
+ticketsRoutes.delete(
+  "/:id",
+  verifyUserAuthorization(["admin"]),
+  ticketsController.destroy
+)
+
+// Tech can assign themselves to a ticket
+ticketsRoutes.post(
+  "/:id/assign-self",
+  verifyUserAuthorization(["tech"]),
+  ticketsController.assignSelf
+)
+
 export { ticketsRoutes }
