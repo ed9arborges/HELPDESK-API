@@ -3,7 +3,8 @@ import { Router } from "express"
 import { usersRoutes } from "./users-routes"
 import { sessionsRoutes } from "./sessions-routes"
 import { ensureAuthenticated } from "@/middlewares/ensure-authenticated"
-import { requestsRoutes } from "./requests-routes"
+
+import { ticketsRoutes } from "./tickets-routes"
 
 const routes = Router()
 
@@ -12,6 +13,6 @@ routes.use("/sessions", sessionsRoutes)
 
 // Protected routes with ensureAuthenticated middleware
 routes.use(ensureAuthenticated);
-routes.use("/request", requestsRoutes);
+routes.use("/tickets", ticketsRoutes);
 
 export { routes }
