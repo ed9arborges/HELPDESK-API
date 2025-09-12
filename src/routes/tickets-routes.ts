@@ -43,4 +43,25 @@ ticketsRoutes.post(
   ticketsController.assignSelf
 )
 
+// Start a ticket (tech)
+ticketsRoutes.post(
+  "/:id/start",
+  verifyUserAuthorization(["tech", "admin"]),
+  ticketsController.start
+)
+
+// Close a ticket (tech assigned or admin)
+ticketsRoutes.post(
+  "/:id/close",
+  verifyUserAuthorization(["tech", "admin"]),
+  ticketsController.close
+)
+
+// Reopen a ticket (tech assigned or admin)
+ticketsRoutes.post(
+  "/:id/reopen",
+  verifyUserAuthorization(["tech", "admin"]),
+  ticketsController.reopen
+)
+
 export { ticketsRoutes }

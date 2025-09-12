@@ -195,6 +195,94 @@ class TicketsController {
       .status(200)
       .json({ message: "Assigned to you", ticket: updated })
   }
+
+  async start(request: Request, response: Response) {
+    if (!request.user?.id) throw new AppError("Unauthorized", 401)
+
+    const paramsSchema = z.object({ id: z.string().uuid("Invalid ticket ID") })
+    const { id } = paramsSchema.parse(request.params)
+
+    const ticket = await prisma.requests.findUnique({ where: { id } })
+    if (!ticket) throw new AppError("Ticket not found", 404)
+
+    if (ticket.status !== "open") {
+      throw new AppError("Only open tickets can be started", 400)
+    }
+
+    if (ticket.techId && ticket.techId !== request.user.id) {
+      throw new AppError("Ticket already assigned to another technician", 409)
+    }
+
+    const updated = await prisma.requests.update({
+      where: { id },
+      data: { status: "in_progress", techId: request.user.id },
+      include: { user: true, tech: true },
+    })
+
+    return response
+      .status(200)
+      .json({ message: "Ticket started", ticket: updated })
+  }
+
+  async close(request: Request, response: Response) {
+    if (!request.user?.id) throw new AppError("Unauthorized", 401)
+
+    const paramsSchema = z.object({ id: z.string().uuid("Invalid ticket ID") })
+    const { id } = paramsSchema.parse(request.params)
+
+    const ticket = await prisma.requests.findUnique({ where: { id } })
+    if (!ticket) throw new AppError("Ticket not found", 404)
+
+    if (ticket.status !== "in_progress") {
+      throw new AppError("Only in-progress tickets can be closed", 400)
+    }
+
+    // Admin can close any; tech can only close if assigned
+    const isAdmin = request.user.role === "admin"
+    if (!isAdmin && ticket.techId !== request.user.id) {
+      throw new AppError("You are not assigned to this ticket", 403)
+    }
+
+    const updated = await prisma.requests.update({
+      where: { id },
+      data: { status: "closed" },
+      include: { user: true, tech: true },
+    })
+
+    return response
+      .status(200)
+      .json({ message: "Ticket closed", ticket: updated })
+  }
+
+  async reopen(request: Request, response: Response) {
+    if (!request.user?.id) throw new AppError("Unauthorized", 401)
+
+    const paramsSchema = z.object({ id: z.string().uuid("Invalid ticket ID") })
+    const { id } = paramsSchema.parse(request.params)
+
+    const ticket = await prisma.requests.findUnique({ where: { id } })
+    if (!ticket) throw new AppError("Ticket not found", 404)
+
+    if (ticket.status !== "closed") {
+      throw new AppError("Only closed tickets can be reopened", 400)
+    }
+
+    // Admin can reopen any; tech can only reopen if they were assigned
+    const isAdmin = request.user.role === "admin"
+    if (!isAdmin && ticket.techId !== request.user.id) {
+      throw new AppError("You are not assigned to this ticket", 403)
+    }
+
+    const updated = await prisma.requests.update({
+      where: { id },
+      data: { status: "open", techId: null },
+      include: { user: true, tech: true },
+    })
+
+    return response
+      .status(200)
+      .json({ message: "Ticket reopened", ticket: updated })
+  }
 }
 
 export { TicketsController }
