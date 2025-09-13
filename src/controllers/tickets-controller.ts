@@ -35,7 +35,7 @@ class TicketsController {
       throw new AppError("Unauthorized", 401)
     }
 
-    const ticket = await prisma.requests.create({
+    const ticket = await prisma.tickets.create({
       data: {
         title,
         category,
@@ -69,7 +69,7 @@ class TicketsController {
 
     const whereClause = isCustomer ? { userId: request.user.id } : {} // tech/admin can list all for now (could be filtered by techId if desired)
 
-    const tickets = await prisma.requests.findMany({
+    const tickets = await prisma.tickets.findMany({
       skip,
       take: perPage,
       where: whereClause,
@@ -80,7 +80,7 @@ class TicketsController {
       },
     })
 
-    const totalRecords = await prisma.requests.count({ where: whereClause })
+    const totalRecords = await prisma.tickets.count({ where: whereClause })
 
     const totalPages = Math.ceil(totalRecords / perPage)
 
@@ -102,15 +102,18 @@ class TicketsController {
 
     const { id } = paramsSchema.parse(request.params)
 
-    const ticket = await prisma.requests.findFirst({
+    const ticketRaw = await prisma.tickets.findFirst({
       where: { id },
-      include: { user: true, tech: true, parts: true },
+      include: { user: true, tech: true, servicesId: true },
     })
 
-    if (!ticket) {
+    if (!ticketRaw) {
       throw new AppError("Ticket not found", 404)
     }
 
+    // Map servicesId -> parts for backward compatibility
+    const { servicesId, ...rest } = ticketRaw as any
+    const ticket = { ...rest, parts: servicesId }
     return response.status(200).json(ticket)
   }
 
@@ -139,10 +142,10 @@ class TicketsController {
     const { id } = paramsSchema.parse(request.params)
     const payload = bodySchema.parse(request.body)
 
-    const exists = await prisma.requests.findUnique({ where: { id } })
+    const exists = await prisma.tickets.findUnique({ where: { id } })
     if (!exists) throw new AppError("Ticket not found", 404)
 
-    const updated = await prisma.requests.update({
+    const updated = await prisma.tickets.update({
       where: { id },
       data: {
         ...payload,
@@ -165,10 +168,10 @@ class TicketsController {
     }
     const { id } = paramsSchema.parse(request.params)
 
-    const exists = await prisma.requests.findUnique({ where: { id } })
+    const exists = await prisma.tickets.findUnique({ where: { id } })
     if (!exists) throw new AppError("Ticket not found", 404)
 
-    await prisma.requests.delete({ where: { id } })
+    await prisma.tickets.delete({ where: { id } })
     return response.status(204).send()
   }
 
@@ -178,14 +181,14 @@ class TicketsController {
     const paramsSchema = z.object({ id: z.string().uuid("Invalid ticket ID") })
     const { id } = paramsSchema.parse(request.params)
 
-    const ticket = await prisma.requests.findUnique({ where: { id } })
+    const ticket = await prisma.tickets.findUnique({ where: { id } })
     if (!ticket) throw new AppError("Ticket not found", 404)
 
     if (ticket.techId && ticket.techId !== request.user.id) {
       throw new AppError("Ticket already assigned to another technician", 409)
     }
 
-    const updated = await prisma.requests.update({
+    const updated = await prisma.tickets.update({
       where: { id },
       data: { techId: request.user.id },
       include: { user: true, tech: true },
@@ -202,7 +205,7 @@ class TicketsController {
     const paramsSchema = z.object({ id: z.string().uuid("Invalid ticket ID") })
     const { id } = paramsSchema.parse(request.params)
 
-    const ticket = await prisma.requests.findUnique({ where: { id } })
+    const ticket = await prisma.tickets.findUnique({ where: { id } })
     if (!ticket) throw new AppError("Ticket not found", 404)
 
     if (ticket.status !== "open") {
@@ -213,11 +216,14 @@ class TicketsController {
       throw new AppError("Ticket already assigned to another technician", 409)
     }
 
-    const updated = await prisma.requests.update({
+    const updatedRaw = await prisma.tickets.update({
       where: { id },
       data: { status: "in_progress", techId: request.user.id },
-      include: { user: true, tech: true, parts: true },
+      include: { user: true, tech: true, servicesId: true },
     })
+
+    const { servicesId, ...rest } = updatedRaw as any
+    const updated = { ...rest, parts: servicesId }
 
     return response
       .status(200)
@@ -230,7 +236,7 @@ class TicketsController {
     const paramsSchema = z.object({ id: z.string().uuid("Invalid ticket ID") })
     const { id } = paramsSchema.parse(request.params)
 
-    const ticket = await prisma.requests.findUnique({ where: { id } })
+    const ticket = await prisma.tickets.findUnique({ where: { id } })
     if (!ticket) throw new AppError("Ticket not found", 404)
 
     if (ticket.status !== "in_progress") {
@@ -243,7 +249,7 @@ class TicketsController {
       throw new AppError("You are not assigned to this ticket", 403)
     }
 
-    const updated = await prisma.requests.update({
+    const updated = await prisma.tickets.update({
       where: { id },
       data: { status: "closed" },
       include: { user: true, tech: true },
@@ -260,7 +266,7 @@ class TicketsController {
     const paramsSchema = z.object({ id: z.string().uuid("Invalid ticket ID") })
     const { id } = paramsSchema.parse(request.params)
 
-    const ticket = await prisma.requests.findUnique({ where: { id } })
+    const ticket = await prisma.tickets.findUnique({ where: { id } })
     if (!ticket) throw new AppError("Ticket not found", 404)
 
     if (ticket.status !== "closed") {
@@ -273,7 +279,7 @@ class TicketsController {
       throw new AppError("You are not assigned to this ticket", 403)
     }
 
-    const updated = await prisma.requests.update({
+    const updated = await prisma.tickets.update({
       where: { id },
       data: { status: "open", techId: null },
       include: { user: true, tech: true },
@@ -289,11 +295,11 @@ class TicketsController {
     const paramsSchema = z.object({ id: z.string().uuid("Invalid ticket ID") })
     const { id } = paramsSchema.parse(request.params)
 
-    const exists = await prisma.requests.findUnique({ where: { id } })
+    const exists = await prisma.tickets.findUnique({ where: { id } })
     if (!exists) throw new AppError("Ticket not found", 404)
 
-    const parts = await prisma.parts.findMany({
-      where: { requestId: id },
+    const parts = await prisma.services.findMany({
+      where: { ticketId: id },
       orderBy: { createdAt: "desc" },
     })
 
@@ -313,7 +319,7 @@ class TicketsController {
     const { id } = paramsSchema.parse(request.params)
     const { name, amount } = bodySchema.parse(request.body)
 
-    const ticket = await prisma.requests.findUnique({ where: { id } })
+    const ticket = await prisma.tickets.findUnique({ where: { id } })
     if (!ticket) throw new AppError("Ticket not found", 404)
 
     if (ticket.status !== "in_progress") {
@@ -328,11 +334,11 @@ class TicketsController {
       }
     }
 
-    const created = await prisma.parts.create({
+    const created = await prisma.services.create({
       data: {
         name,
         amount,
-        requestId: id,
+        ticketId: id,
       },
     })
 
@@ -350,15 +356,15 @@ class TicketsController {
 
     const { id, partId } = paramsSchema.parse(request.params)
 
-    const ticket = await prisma.requests.findUnique({ where: { id } })
+    const ticket = await prisma.tickets.findUnique({ where: { id } })
     if (!ticket) throw new AppError("Ticket not found", 404)
 
     if (ticket.status !== "in_progress") {
       throw new AppError("Only in-progress tickets can be modified", 400)
     }
 
-    const part = await prisma.parts.findUnique({ where: { id: partId } })
-    if (!part || part.requestId !== id) {
+    const part = await prisma.services.findUnique({ where: { id: partId } })
+    if (!part || part.ticketId !== id) {
       throw new AppError("Part not found for this ticket", 404)
     }
 
@@ -370,7 +376,7 @@ class TicketsController {
       }
     }
 
-    await prisma.parts.delete({ where: { id: partId } })
+    await prisma.services.delete({ where: { id: partId } })
 
     return response.status(204).send()
   }

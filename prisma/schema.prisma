@@ -25,7 +25,7 @@ enum Category {
   systems
 }
 
-enum RequestStatus {
+enum TicketsStatus {
   open
   in_progress
   closed
@@ -39,45 +39,45 @@ model User {
   avatarImg String
   role UserRole @default(customer)
 
-  requests Requests[] @relation("CustomerRequests")
-  assignedRequests Requests[] @relation("TechRequests")
+  tickets Tickets[] @relation("CustomerTickets")
+  assignedTickets Tickets[] @relation("TechTickets")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime? @updatedAt @map("updated_at")
 
   @@map("users")
 }
-model Requests {
+model Tickets {
   id String @id @default(uuid())
   title String @map("title")
   description String
   estimate Float
   category Category
   filename String
-  status RequestStatus @default(open)
+  status TicketsStatus @default(open)
   userId String @map("user_id")
-  user User @relation("CustomerRequests", fields: [userId], references: [id])
+  user User @relation("CustomerTickets", fields: [userId], references: [id])
   techId String? @map("tech_id")
-  tech User? @relation("TechRequests", fields: [techId], references: [id])
+  tech User? @relation("TechTickets", fields: [techId], references: [id])
 
-  parts Parts[] @relation("RequestParts")
+  servicesId Services[] @relation("TicketsServices")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime? @updatedAt @map("updated_at")
 
-  @@map("requests")
+  @@map("tickets")
 }
 
-model Parts {
+model Services {
   id String @id @default(uuid())
   name String
   amount Float
-
-  requestId String? @map("request_id")
-  request Requests? @relation("RequestParts", fields: [requestId], references: [id])
+  isBasic Boolean @default(true) @map("is_basic")
+  ticketId String? @map("ticket_id")
+  ticket Tickets? @relation("TicketsServices", fields: [ticketId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime? @updatedAt @map("updated_at")
 
-  @@map("parts")
+  @@map("services")
 }
