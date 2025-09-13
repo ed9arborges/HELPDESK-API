@@ -299,7 +299,7 @@ class TicketsController {
     if (!exists) throw new AppError("Ticket not found", 404)
 
     const parts = await prisma.services.findMany({
-      where: { ticketId: id },
+      where: { ticketId: id, isBasic: false },
       orderBy: { createdAt: "desc" },
     })
 
@@ -339,6 +339,8 @@ class TicketsController {
         name,
         amount,
         ticketId: id,
+        // mark as an extra (non-basic) service tied to this ticket
+        isBasic: false,
       },
     })
 
