@@ -104,7 +104,7 @@ class TicketsController {
 
     const ticket = await prisma.requests.findFirst({
       where: { id },
-      include: { user: true, tech: true },
+      include: { user: true, tech: true, parts: true },
     })
 
     if (!ticket) {
@@ -216,7 +216,7 @@ class TicketsController {
     const updated = await prisma.requests.update({
       where: { id },
       data: { status: "in_progress", techId: request.user.id },
-      include: { user: true, tech: true },
+      include: { user: true, tech: true, parts: true },
     })
 
     return response
@@ -282,6 +282,97 @@ class TicketsController {
     return response
       .status(200)
       .json({ message: "Ticket reopened", ticket: updated })
+  }
+
+  // List parts for a ticket
+  async listParts(request: Request, response: Response) {
+    const paramsSchema = z.object({ id: z.string().uuid("Invalid ticket ID") })
+    const { id } = paramsSchema.parse(request.params)
+
+    const exists = await prisma.requests.findUnique({ where: { id } })
+    if (!exists) throw new AppError("Ticket not found", 404)
+
+    const parts = await prisma.parts.findMany({
+      where: { requestId: id },
+      orderBy: { createdAt: "desc" },
+    })
+
+    return response.status(200).json({ parts })
+  }
+
+  // Add a part (additional service) to a ticket
+  async addPart(request: Request, response: Response) {
+    if (!request.user?.id) throw new AppError("Unauthorized", 401)
+
+    const paramsSchema = z.object({ id: z.string().uuid("Invalid ticket ID") })
+    const bodySchema = z.object({
+      name: z.string().trim().min(1, "Name is required"),
+      amount: z.coerce.number().min(0, { message: "Amount must be >= 0" }),
+    })
+
+    const { id } = paramsSchema.parse(request.params)
+    const { name, amount } = bodySchema.parse(request.body)
+
+    const ticket = await prisma.requests.findUnique({ where: { id } })
+    if (!ticket) throw new AppError("Ticket not found", 404)
+
+    if (ticket.status !== "in_progress") {
+      throw new AppError("Only in-progress tickets can be modified", 400)
+    }
+
+    // Only admin or assigned tech can add parts
+    const isAdmin = request.user.role === "admin"
+    if (!isAdmin) {
+      if (!ticket.techId || ticket.techId !== request.user.id) {
+        throw new AppError("You are not assigned to this ticket", 403)
+      }
+    }
+
+    const created = await prisma.parts.create({
+      data: {
+        name,
+        amount,
+        requestId: id,
+      },
+    })
+
+    return response.status(201).json({ message: "Part added", part: created })
+  }
+
+  // Remove a part from a ticket
+  async removePart(request: Request, response: Response) {
+    if (!request.user?.id) throw new AppError("Unauthorized", 401)
+
+    const paramsSchema = z.object({
+      id: z.string().uuid("Invalid ticket ID"),
+      partId: z.string().uuid("Invalid part ID"),
+    })
+
+    const { id, partId } = paramsSchema.parse(request.params)
+
+    const ticket = await prisma.requests.findUnique({ where: { id } })
+    if (!ticket) throw new AppError("Ticket not found", 404)
+
+    if (ticket.status !== "in_progress") {
+      throw new AppError("Only in-progress tickets can be modified", 400)
+    }
+
+    const part = await prisma.parts.findUnique({ where: { id: partId } })
+    if (!part || part.requestId !== id) {
+      throw new AppError("Part not found for this ticket", 404)
+    }
+
+    // Only admin or assigned tech can remove parts
+    const isAdmin = request.user.role === "admin"
+    if (!isAdmin) {
+      if (!ticket.techId || ticket.techId !== request.user.id) {
+        throw new AppError("You are not assigned to this ticket", 403)
+      }
+    }
+
+    await prisma.parts.delete({ where: { id: partId } })
+
+    return response.status(204).send()
   }
 }
 

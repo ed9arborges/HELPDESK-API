@@ -65,3 +65,22 @@ ticketsRoutes.post(
 )
 
 export { ticketsRoutes }
+
+// Additional nested routes for ticket parts (extra services)
+ticketsRoutes.get(
+  "/:id/parts",
+  verifyUserAuthorization(["tech", "customer", "admin"]),
+  ticketsController.listParts
+)
+
+ticketsRoutes.post(
+  "/:id/parts",
+  verifyUserAuthorization(["tech", "admin"]),
+  ticketsController.addPart
+)
+
+ticketsRoutes.delete(
+  "/:id/parts/:partId",
+  verifyUserAuthorization(["tech", "admin"]),
+  ticketsController.removePart
+)
