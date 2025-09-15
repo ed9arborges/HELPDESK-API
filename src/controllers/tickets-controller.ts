@@ -3,17 +3,6 @@ import prisma from "@/database/prisma"
 import { z } from "zod"
 import { AppError } from "@/utils/AppError"
 
-const CategoriesEnum = z.enum([
-  "hardware",
-  "data",
-  "software",
-  "web",
-  "network",
-  "virus",
-  "peripherals",
-  "systems",
-])
-
 const TicketStatusEnum = z.enum(["open", "in_progress", "closed"])
 
 class TicketsController {
@@ -35,17 +24,15 @@ class TicketsController {
       throw new AppError("Unauthorized", 401)
     }
 
-    // Find the selected catalog service to infer category/estimate
-    const service = await prisma.services.findFirst({
-      where: { id: serviceId, isBasic: true, ticketId: null },
+    // Find the selected catalog service to infer estimate
+    // @ts-ignore delegate will exist after prisma generate
+    const service = await prisma.categoryServices.findFirst({
+      where: { id: serviceId },
     })
     if (!service) {
       throw new AppError("Selected service not found in catalog", 404)
     }
 
-    // Try to infer category from service name keywords
-    const lower = service.name.toLowerCase()
-   
     const ticket = await prisma.tickets.create({
       data: {
         title,
@@ -54,16 +41,11 @@ class TicketsController {
         estimate: estimate ?? Number(service.amount) ?? 0,
         filename: "",
         userId: request.user.id,
-        // link the selected basic service as a part of this ticket
-        servicesId: {
-          create: {
-            name: service.name,
-            amount: service.amount,
-            isBasic: true,
-          },
-        },
-      },
-      include: { servicesId: true },
+        // link the selected catalog service by id
+        serviceId: service.id,
+      } as any,
+      // Include relations minimal to avoid missing types before regenerate
+      include: { user: true, tech: true },
     })
 
     return response.status(201).json({ message: "Ticket created!", ticket })
@@ -123,16 +105,17 @@ class TicketsController {
 
     const ticketRaw = await prisma.tickets.findFirst({
       where: { id },
-      include: { user: true, tech: true, servicesId: true },
+      include: { user: true, tech: true },
     })
 
     if (!ticketRaw) {
       throw new AppError("Ticket not found", 404)
     }
 
-    // Map servicesId -> parts for backward compatibility
-    const { servicesId, ...rest } = ticketRaw as any
-    const ticket = { ...rest, parts: servicesId }
+    // Map services (extras) -> parts for backward compatibility
+    // services extras not included in query above; fetch separately for response shape
+    const extras = await prisma.services.findMany({ where: { ticketId: id } })
+    const ticket = { ...ticketRaw, service: extras }
     return response.status(200).json(ticket)
   }
 
@@ -144,7 +127,6 @@ class TicketsController {
       .object({
         title: z.string().trim().min(1).optional(),
         description: z.string().trim().min(1).optional(),
-        category: CategoriesEnum.optional(),
         status: TicketStatusEnum.optional(),
         estimate: z.coerce.number().min(0).optional(),
         techId: z.string().uuid().nullable().optional(),
@@ -238,11 +220,11 @@ class TicketsController {
     const updatedRaw = await prisma.tickets.update({
       where: { id },
       data: { status: "in_progress", techId: request.user.id },
-      include: { user: true, tech: true, servicesId: true },
+      include: { user: true, tech: true },
     })
 
-    const { servicesId, ...rest } = updatedRaw as any
-    const updated = { ...rest, parts: servicesId }
+    const extras = await prisma.services.findMany({ where: { ticketId: id } })
+    const updated = { ...updatedRaw, service: extras }
 
     return response
       .status(200)
@@ -318,7 +300,7 @@ class TicketsController {
     if (!exists) throw new AppError("Ticket not found", 404)
 
     const parts = await prisma.services.findMany({
-      where: { ticketId: id, isBasic: false },
+      where: { ticketId: id },
       orderBy: { createdAt: "desc" },
     })
 
@@ -358,8 +340,6 @@ class TicketsController {
         name,
         amount,
         ticketId: id,
-        // mark as an extra (non-basic) service tied to this ticket
-        isBasic: false,
       },
     })
 

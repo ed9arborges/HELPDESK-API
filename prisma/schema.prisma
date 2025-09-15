@@ -14,17 +14,6 @@ enum UserRole {
   admin
 }
 
-enum Category {
-  hardware
-  data
-  software
-  web
-  network
-  virus
-  peripherals
-  systems
-}
-
 enum TicketsStatus {
   open
   in_progress
@@ -52,6 +41,9 @@ model Tickets {
   title String @map("title")
   description String
   estimate Float
+  // Reference to catalog service (CategoryServices)
+  serviceId String @map("service_id")
+  service CategoryServices @relation(fields: [serviceId], references: [id])
   filename String
   status TicketsStatus @default(open)
   userId String @map("user_id")
@@ -59,7 +51,8 @@ model Tickets {
   techId String? @map("tech_id")
   tech User? @relation("TechTickets", fields: [techId], references: [id])
 
-  servicesId Services[] @relation("TicketsServices")
+  // Extra services (parts) tied to this ticket
+  services Services[] @relation("TicketsServices")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime? @updatedAt @map("updated_at")
@@ -71,12 +64,27 @@ model Services {
   id String @id @default(uuid())
   name String
   amount Float
-  isBasic Boolean @default(true) @map("is_basic")
-  ticketId String? @map("ticket_id")
-  ticket Tickets? @relation("TicketsServices", fields: [ticketId], references: [id])
+  // Extra service item belongs to exactly one ticket
+  ticketId String @map("ticket_id")
+  ticket Tickets @relation("TicketsServices", fields: [ticketId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime? @updatedAt @map("updated_at")
 
   @@map("services")
+}
+
+// Catalog of basic services selectable when opening a ticket
+model CategoryServices {
+  id String @id @default(uuid())
+  name String
+  amount Float
+
+  // Back-reference to tickets using this category service
+  tickets Tickets[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  @@map("category_services")
 }

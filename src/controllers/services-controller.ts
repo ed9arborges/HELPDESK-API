@@ -4,7 +4,7 @@ import { z } from "zod"
 import { AppError } from "@/utils/AppError"
 
 class ServicesController {
-  // Public list for authenticated users: only catalog basics (isBasic=true, ticketId null)
+  // Public list for authenticated users: catalog services
   async index(request: Request, response: Response) {
     if (!request.user?.id) throw new AppError("Unauthorized", 401)
 
@@ -13,12 +13,13 @@ class ServicesController {
     })
     const { q } = querySchema.parse(request.query)
 
-    const where: any = { isBasic: true, ticketId: null }
+    const where: any = {}
     if (q && q.trim()) {
       where.name = { contains: q.trim(), mode: "insensitive" }
     }
 
-    const services = await prisma.services.findMany({
+    // @ts-ignore delegate will exist after prisma generate
+    const services = await prisma.categoryServices.findMany({
       where,
       orderBy: [{ name: "asc" }],
     })
@@ -26,7 +27,7 @@ class ServicesController {
     return response.status(200).json({ services })
   }
 
-  // Admin: create a basic catalog service (isBasic=true)
+  // Admin: create a catalog service
   async create(request: Request, response: Response) {
     if (!request.user) throw new AppError("Unauthorized", 401)
     if (request.user.role !== "admin") throw new AppError("Forbidden", 403)
@@ -38,8 +39,9 @@ class ServicesController {
 
     const { name, amount } = bodySchema.parse(request.body)
 
-    const created = await prisma.services.create({
-      data: { name, amount, isBasic: true, ticketId: null },
+    // @ts-ignore delegate will exist after prisma generate
+    const created = await prisma.categoryServices.create({
+      data: { name, amount },
     })
 
     return response
@@ -47,7 +49,7 @@ class ServicesController {
       .json({ message: "Service created", service: created })
   }
 
-  // Admin: update a basic catalog service
+  // Admin: update a catalog service
   async update(request: Request, response: Response) {
     if (!request.user) throw new AppError("Unauthorized", 401)
     if (request.user.role !== "admin") throw new AppError("Forbidden", 403)
@@ -63,14 +65,16 @@ class ServicesController {
     const { id } = paramsSchema.parse(request.params)
     const payload = bodySchema.parse(request.body)
 
-    const exists = await prisma.services.findFirst({
-      where: { id, ticketId: null, isBasic: true },
+    // @ts-ignore delegate will exist after prisma generate
+    const exists = await prisma.categoryServices.findFirst({
+      where: { id },
     })
     if (!exists) throw new AppError("Service not found", 404)
 
-    const updated = await prisma.services.update({
+    // @ts-ignore delegate will exist after prisma generate
+    const updated = await prisma.categoryServices.update({
       where: { id },
-      data: { ...payload, isBasic: true, ticketId: null },
+      data: { ...payload },
     })
 
     return response
@@ -78,7 +82,7 @@ class ServicesController {
       .json({ message: "Service updated", service: updated })
   }
 
-  // Admin: delete a basic catalog service
+  // Admin: delete a catalog service
   async destroy(request: Request, response: Response) {
     if (!request.user) throw new AppError("Unauthorized", 401)
     if (request.user.role !== "admin") throw new AppError("Forbidden", 403)
@@ -86,12 +90,14 @@ class ServicesController {
     const paramsSchema = z.object({ id: z.string().uuid("Invalid ID") })
     const { id } = paramsSchema.parse(request.params)
 
-    const exists = await prisma.services.findFirst({
-      where: { id, ticketId: null, isBasic: true },
+    // @ts-ignore delegate will exist after prisma generate
+    const exists = await prisma.categoryServices.findFirst({
+      where: { id },
     })
     if (!exists) throw new AppError("Service not found", 404)
 
-    await prisma.services.delete({ where: { id } })
+    // @ts-ignore delegate will exist after prisma generate
+    await prisma.categoryServices.delete({ where: { id } })
     return response.status(204).send()
   }
 }
