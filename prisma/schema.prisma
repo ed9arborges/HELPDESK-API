@@ -52,7 +52,6 @@ model Tickets {
   title String @map("title")
   description String
   estimate Float
-  category Category
   filename String
   status TicketsStatus @default(open)
   userId String @map("user_id")

@@ -20,31 +20,50 @@ class TicketsController {
   async create(request: Request, response: Response) {
     const bodySchema = z.object({
       title: z.string().trim().min(1, "Title is required"),
-      category: CategoriesEnum,
+      serviceId: z.string().uuid("Invalid service ID"),
       description: z.string().min(10),
       status: TicketStatusEnum.optional().default("open"),
       techId: z.string().nullable().optional(),
+      // estimate can be sent, but if omitted we'll use the service amount
       estimate: z.coerce.number().optional(),
     })
 
-    const { title, category, description, status, estimate } = bodySchema.parse(
-      request.body
-    )
+    const { title, serviceId, description, status, estimate } =
+      bodySchema.parse(request.body)
 
     if (!request.user?.id) {
       throw new AppError("Unauthorized", 401)
     }
 
+    // Find the selected catalog service to infer category/estimate
+    const service = await prisma.services.findFirst({
+      where: { id: serviceId, isBasic: true, ticketId: null },
+    })
+    if (!service) {
+      throw new AppError("Selected service not found in catalog", 404)
+    }
+
+    // Try to infer category from service name keywords
+    const lower = service.name.toLowerCase()
+   
     const ticket = await prisma.tickets.create({
       data: {
         title,
-        category,
         description,
         status: status || "open",
-        estimate: estimate ?? 0,
+        estimate: estimate ?? Number(service.amount) ?? 0,
         filename: "",
         userId: request.user.id,
+        // link the selected basic service as a part of this ticket
+        servicesId: {
+          create: {
+            name: service.name,
+            amount: service.amount,
+            isBasic: true,
+          },
+        },
       },
+      include: { servicesId: true },
     })
 
     return response.status(201).json({ message: "Ticket created!", ticket })
