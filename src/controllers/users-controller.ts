@@ -6,6 +6,53 @@ import { AppError } from "@/utils/AppError"
 import { hash } from "bcrypt"
 
 class UsersController {
+  async index(request: Request, response: Response) {
+    // Admin-only; middleware should ensure auth/role
+    const querySchema = z.object({
+      role: z.nativeEnum(UserRole).optional(),
+      page: z.coerce.number().min(1).default(1),
+      perPage: z.coerce.number().min(1).max(100).default(20),
+      search: z.string().trim().optional(),
+    })
+
+    const { role, page, perPage, search } = querySchema.parse(request.query)
+
+    const where: any = {}
+    if (role) where.role = role
+    if (search && search.length > 0) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+      ]
+    }
+
+    const skip = (page - 1) * perPage
+
+    const [users, totalRecords] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take: perPage,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          avatarImg: true,
+        },
+      }),
+      prisma.user.count({ where }),
+    ])
+
+    const totalPages = Math.ceil(totalRecords / perPage)
+
+    return response.json({
+      users,
+      pagination: { page, perPage, totalRecords, totalPages: totalPages || 1 },
+    })
+  }
+
   async create(request: Request, response: Response) {
     const bodySchema = z.object({
       name: z.string().trim().min(2, "Name is Mandatory").max(100),
@@ -97,6 +144,78 @@ class UsersController {
     })
 
     return response.json({ user: updated })
+  }
+
+  async updateRole(request: Request, response: Response) {
+    // Admin-only; change role between customer and tech
+    const paramsSchema = z.object({ id: z.string().uuid("Invalid user ID") })
+    const bodySchema = z.object({
+      role: z.enum([UserRole.customer, UserRole.tech]),
+    })
+
+    const { id } = paramsSchema.parse(request.params)
+    const { role } = bodySchema.parse(request.body)
+
+    const target = await prisma.user.findUnique({ where: { id } })
+    if (!target) throw new AppError("User not found", 404)
+    if (target.role === UserRole.admin) {
+      throw new AppError("Cannot modify admin role", 403)
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { role },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatarImg: true,
+      },
+    })
+
+    return response.json({ message: "Role updated", user: updated })
+  }
+
+  async destroy(request: Request, response: Response) {
+    // Admin-only; delete if no related tickets
+    const paramsSchema = z.object({ id: z.string().uuid("Invalid user ID") })
+    const { id } = paramsSchema.parse(request.params)
+
+    const target = await prisma.user.findUnique({ where: { id } })
+    if (!target) throw new AppError("User not found", 404)
+    if (target.role === UserRole.admin) {
+      throw new AppError("Cannot delete admin user", 403)
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (target.role === UserRole.customer) {
+        // Delete customer's tickets and their parts (services) first
+        const tickets = await tx.tickets.findMany({
+          where: { userId: id },
+          select: { id: true },
+        })
+        const ticketIds = tickets.map((t) => t.id)
+        if (ticketIds.length > 0) {
+          await tx.services.deleteMany({
+            where: { ticketId: { in: ticketIds } },
+          })
+          await tx.tickets.deleteMany({ where: { id: { in: ticketIds } } })
+        }
+      }
+
+      if (target.role === UserRole.tech) {
+        // Unassign tickets from this tech and set status to open
+        await tx.tickets.updateMany({
+          where: { techId: id },
+          data: { techId: null, status: "open" },
+        })
+      }
+
+      await tx.user.delete({ where: { id } })
+    })
+
+    return response.status(204).send()
   }
 }
 
