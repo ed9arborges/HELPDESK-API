@@ -4,3 +4,8 @@ node_modules
 
 /src/generated/prisma
 prisma/migrations/
+
+# Ignore uploaded files
+/uploads/avatars/*
+# But keep the folders structure
+!/uploads/avatars/.gitkeep
