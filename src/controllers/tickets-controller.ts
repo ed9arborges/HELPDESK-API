@@ -70,6 +70,7 @@ class TicketsController {
 
     const whereClause = isCustomer ? { userId: request.user.id } : {} // tech/admin can list all for now (could be filtered by techId if desired)
 
+    // Get all tickets
     const tickets = await prisma.tickets.findMany({
       skip,
       take: perPage,
@@ -78,6 +79,8 @@ class TicketsController {
       include: {
         user: true,
         tech: true,
+        // Include services (additional parts) to calculate total values
+        services: true,
       },
     })
 
@@ -85,8 +88,29 @@ class TicketsController {
 
     const totalPages = Math.ceil(totalRecords / perPage)
 
+    // Process tickets to include total values (category + services)
+    const processedTickets = tickets.map((ticket) => {
+      // Calculate total from additional services
+      const servicesTotal =
+        ticket.services?.reduce(
+          (sum, service) => sum + (service.amount || 0),
+          0
+        ) || 0
+      // Calculate total (base estimate + services)
+      const totalValue = ticket.estimate + servicesTotal
+
+      // Remove services array from response to maintain backwards compatibility
+      const { services, ...ticketWithoutServices } = ticket
+
+      return {
+        ...ticketWithoutServices,
+        // Add the totalValue property
+        totalValue,
+      }
+    })
+
     return response.status(200).json({
-      tickets,
+      tickets: processedTickets,
       pagination: {
         page,
         perPage,
@@ -115,7 +139,21 @@ class TicketsController {
     // Map services (extras) -> parts for backward compatibility
     // services extras not included in query above; fetch separately for response shape
     const extras = await prisma.services.findMany({ where: { ticketId: id } })
-    const ticket = { ...ticketRaw, service: extras }
+
+    // Calculate total from additional services
+    const servicesTotal = extras.reduce(
+      (sum, service) => sum + (service.amount || 0),
+      0
+    )
+    // Calculate total (base estimate + services)
+    const totalValue = ticketRaw.estimate + servicesTotal
+
+    const ticket = {
+      ...ticketRaw,
+      service: extras,
+      totalValue, // Add totalValue to response
+    }
+
     return response.status(200).json(ticket)
   }
 
@@ -224,7 +262,20 @@ class TicketsController {
     })
 
     const extras = await prisma.services.findMany({ where: { ticketId: id } })
-    const updated = { ...updatedRaw, service: extras }
+
+    // Calculate total from additional services
+    const servicesTotal = extras.reduce(
+      (sum, service) => sum + (service.amount || 0),
+      0
+    )
+    // Calculate total (base estimate + services)
+    const totalValue = updatedRaw.estimate + servicesTotal
+
+    const updated = {
+      ...updatedRaw,
+      service: extras,
+      totalValue, // Add totalValue to response
+    }
 
     return response
       .status(200)
