@@ -2,6 +2,8 @@ import { UserRole } from "@prisma/client"
 import { Request, Response } from "express"
 import { z } from "zod"
 import prisma from "@/database/prisma"
+import path from "path"
+import fs from "fs"
 import { AppError } from "@/utils/AppError"
 import { hash } from "bcrypt"
 
@@ -216,6 +218,120 @@ class UsersController {
     })
 
     return response.status(204).send()
+  }
+
+  async uploadAvatar(request: Request, response: Response) {
+    if (!request.user) {
+      throw new AppError("Unauthorized", 401)
+    }
+
+    if (!request.file) {
+      throw new AppError("No file uploaded", 400)
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: request.user.id },
+    })
+
+    if (!user) {
+      throw new AppError("User not found", 404)
+    }
+
+    // If there's an existing avatar, delete it
+    if (user.avatarImg && user.avatarImg !== "") {
+      try {
+        const oldAvatarPath = path.resolve(
+          __dirname,
+          "..",
+          "..",
+          "uploads",
+          "avatars",
+          user.avatarImg
+        )
+        if (fs.existsSync(oldAvatarPath)) {
+          fs.unlinkSync(oldAvatarPath)
+        }
+      } catch (error) {
+        console.error("Failed to delete old avatar:", error)
+      }
+    }
+
+    // Update user with new avatar
+    const avatarFilename = request.file.filename
+
+    const updated = await prisma.user.update({
+      where: { id: request.user.id },
+      data: {
+        avatarImg: avatarFilename,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatarImg: true,
+      },
+    })
+
+    return response.json({
+      message: "Avatar updated successfully",
+      user: updated,
+    })
+  }
+
+  async deleteAvatar(request: Request, response: Response) {
+    if (!request.user) {
+      throw new AppError("Unauthorized", 401)
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: request.user.id },
+    })
+
+    if (!user) {
+      throw new AppError("User not found", 404)
+    }
+
+    // If there's an existing avatar, delete it
+    if (user.avatarImg && user.avatarImg !== "") {
+      try {
+        const oldAvatarPath = path.resolve(
+          __dirname,
+          "..",
+          "..",
+          "uploads",
+          "avatars",
+          user.avatarImg
+        )
+        if (fs.existsSync(oldAvatarPath)) {
+          fs.unlinkSync(oldAvatarPath)
+        }
+      } catch (error) {
+        console.error("Failed to delete avatar:", error)
+      }
+    }
+
+    // Update user to remove avatar reference
+    const updated = await prisma.user.update({
+      where: { id: request.user.id },
+      data: {
+        avatarImg: "",
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatarImg: true,
+      },
+    })
+
+    return response.json({
+      message: "Avatar removed successfully",
+      user: updated,
+    })
   }
 }
 

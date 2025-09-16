@@ -1,8 +1,8 @@
-
 import express from "express"
 import cors from "cors"
 
 import { routes } from "./routes"
+import { staticRouter } from "./routes/static-routes"
 import { errorHandling } from "@/middlewares/error-handling"
 
 const app = express()
@@ -14,6 +14,10 @@ app.get("/", (req, res) => {
   res.send("Hello World!")
 })
 
+// Serve static files without authentication
+app.use(staticRouter)
+
+// API routes with authentication
 app.use(routes)
 app.use(errorHandling)
 
