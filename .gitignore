@@ -3,7 +3,6 @@ node_modules
 .env
 
 /src/generated/prisma
-prisma/migrations/
 
 # Ignore uploaded files
 /uploads/avatars/*
