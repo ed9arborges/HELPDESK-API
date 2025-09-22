@@ -3,19 +3,13 @@ import multer from "multer"
 import path from "path"
 import crypto from "crypto"
 import fs from "fs"
+import { avatarsDir, uploadsRoot } from "@/configs/upload"
 
 const MAX_SIZE = 4 * 1024 * 1024 // 4MB
 
-const uploadsFolder = path.resolve(__dirname, "..", "..", "uploads")
-const avatarFolder = path.resolve(uploadsFolder, "avatars")
-
-// Ensure uploads directory exists
-if (!fs.existsSync(uploadsFolder)) {
-  fs.mkdirSync(uploadsFolder)
-}
-if (!fs.existsSync(avatarFolder)) {
-  fs.mkdirSync(avatarFolder)
-}
+// Directories are ensured by the upload config on module import.
+const uploadsFolder = uploadsRoot
+const avatarFolder = avatarsDir
 
 const storageAvatar = multer.diskStorage({
   destination: function (req, file, cb) {
