@@ -4,6 +4,8 @@
   "main": "src/server.ts",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "build": "tsup src --out-dir build",
+    "start": "node --env-file=.env build/server.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
@@ -38,6 +40,7 @@
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
+    "tsup": "^8.5.0",
     "tsx": "^4.19.2",
     "typescript": "^5.9.2"
   }
