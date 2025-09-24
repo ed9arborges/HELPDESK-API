@@ -9,8 +9,15 @@ import { sign, SignOptions } from "jsonwebtoken"
 class SessionsController {
   async create(request: Request, response: Response) {
     const bodySchema = z.object({
-      email: z.string().email({ message: "Invalid email" }),
-      password: z.string().min(6).max(100),
+      email: z
+        .string()
+        .trim()
+        .email({ message: "Invalid email" })
+        .toLowerCase(),
+      password: z
+        .string()
+        .min(6, { message: "Password must be at least 6 characters long" })
+        .max(100),
     })
 
     const { email, password } = bodySchema.parse(request.body)
@@ -38,12 +45,10 @@ class SessionsController {
       expiresIn: expiresIn as SignOptions["expiresIn"],
     })
 
-    return response
-      .status(200)
-      .json({
-        token,
-        user: { name: user.name, email: user.email, role: user.role },
-      })
+    return response.status(200).json({
+      token,
+      user: { name: user.name, email: user.email, role: user.role },
+    })
   }
 }
 
